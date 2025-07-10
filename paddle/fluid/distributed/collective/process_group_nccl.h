@@ -25,7 +25,9 @@
 #include "paddle/phi/backends/gpu/forwards.h"
 #include "paddle/phi/common/place.h"
 #include "paddle/phi/core/device_context.h"
+#include "paddle/phi/core/distributed/comm_context_manager.h"
 #include "paddle/phi/core/distributed/nccl_comm_context.h"
+#include "paddle/phi/core/distributed/nccl_config.h"
 #include "paddle/phi/core/distributed/store/store.h"
 #include "paddle/phi/core/platform/device_event.h"
 
@@ -77,14 +79,17 @@ class ProcessGroupNCCL final : public ProcessGroupWithStream {
       int size,
       int gid,
       int64_t timeout,
-      int nccl_comm_init_option);
+      int nccl_comm_init_option,
+      std::shared_ptr<phi::distributed::NCCLConfig> nccl_config = nullptr);
 
-  ProcessGroupNCCL(const std::shared_ptr<phi::distributed::Store>& store,
-                   int rank,
-                   int size,
-                   int gid,
-                   int64_t timeout = 30 * 60 * 1000,
-                   int nccl_comm_init_option = 0);
+  ProcessGroupNCCL(
+      const std::shared_ptr<phi::distributed::Store>& store,
+      int rank,
+      int size,
+      int gid,
+      int64_t timeout = 30 * 60 * 1000,
+      int nccl_comm_init_option = 0,
+      std::shared_ptr<phi::distributed::NCCLConfig> nccl_config = nullptr);
   ~ProcessGroupNCCL();
 
   std::string GetBackendName() const override { return "NCCL"; }
@@ -190,6 +195,12 @@ class ProcessGroupNCCL final : public ProcessGroupWithStream {
   phi::distributed::NCCLCommContext* GetOrCreateCommContext(
       const Place& place, CommType comm_type = CommType::UNKNOWN);
 
+  void Shutdown();
+  void Restart();
+
+  void EagerConnectRingExchange(
+      std::shared_ptr<phi::distributed::NCCLConfig> nccl_config);
+
  private:
   std::shared_ptr<ProcessGroupNCCL::NCCLTask> CreateTask(const Place& place,
                                                          int rank,
@@ -202,11 +213,13 @@ class ProcessGroupNCCL final : public ProcessGroupWithStream {
                    CommType comm_type,
                    std::string* store_key);
 
-  void CreateNCCLEnvCache(const Place& place,
-                          const std::string& place_key,
-                          const std::string& store_key,
-                          CommType comm_type,
-                          int p2p_rank = 0);
+  void CreateNCCLEnvCache(
+      const Place& place,
+      const std::string& place_key,
+      const std::string& store_key,
+      CommType comm_type,
+      int p2p_rank = 0,
+      std::shared_ptr<phi::distributed::NCCLConfig> nccl_config = nullptr);
 
   void SyncCalcStream(const Place& place, const std::string& place_key);
 
@@ -287,6 +300,11 @@ class ProcessGroupNCCL final : public ProcessGroupWithStream {
   bool is_coalescing_{false};
   std::vector<std::shared_ptr<phi::DenseTensor>> coalescing_tensors_;
   std::vector<std::string> coalescing_place_keys_;
+
+  std::unordered_map<std::string, phi::distributed::P2POption>
+      place_to_p2p_opts_;
+  int64_t create_count_;
+  std::shared_ptr<phi::distributed::NCCLConfig> nccl_config_ptr_;
 };
 
 }  //  namespace distributed

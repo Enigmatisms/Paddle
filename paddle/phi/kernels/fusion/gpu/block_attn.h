@@ -1250,9 +1250,16 @@ inline size_t gqa_smem_size_in_bytes(const Block_AttN_params<T> &params,
                                                     decltype(load_func),   \
                                                     decltype(store_func)>; \
   if (smem_sz > 0xc000) {                                                  \
-    hipFuncSetAttribute((const void *)kernel_fn,                           \
-                        hipFuncAttributeMaxDynamicSharedMemorySize,        \
-                        smem_sz);                                          \
+    hipError_t result =                                                    \
+        hipFuncSetAttribute((const void *)kernel_fn,                       \
+                            hipFuncAttributeMaxDynamicSharedMemorySize,    \
+                            smem_sz);                                      \
+    if (result != hipSuccess) {                                            \
+      result = hipGetLastError();                                          \
+      PADDLE_THROW(::common::errors::Unavailable(                          \
+          " hipFuncSetAttribute() returned error %s",                      \
+          hipGetErrorString(result)));                                     \
+    }                                                                      \
   }                                                                        \
   dim3 grid(params.q_num_head, params.batch_size);                         \
   kernel_fn<<<grid, THDS_PER_BLOCK, smem_sz, stream>>>(                    \
@@ -1291,9 +1298,16 @@ inline size_t gqa_smem_size_in_bytes(const Block_AttN_params<T> &params,
                                  decltype(load_func),                       \
                                  decltype(store_func)>;                     \
   if (smem_sz > 0xc000) {                                                   \
-    hipFuncSetAttribute((const void *)kernel_fn,                            \
-                        hipFuncAttributeMaxDynamicSharedMemorySize,         \
-                        smem_sz);                                           \
+    hipError_t result =                                                     \
+        hipFuncSetAttribute((const void *)kernel_fn,                        \
+                            hipFuncAttributeMaxDynamicSharedMemorySize,     \
+                            smem_sz);                                       \
+    if (result != hipSuccess) {                                             \
+      result = hipGetLastError();                                           \
+      PADDLE_THROW(::common::errors::Unavailable(                           \
+          " hipFuncSetAttribute() returned error %s",                       \
+          hipGetErrorString(result)));                                      \
+    }                                                                       \
   }                                                                         \
   dim3 grid(params.kv_num_head *GQA_NUM_SUB_PARTITIONS, params.batch_size); \
   kernel_fn<<<grid, THDS_PER_BLOCK, smem_sz, stream>>>(                     \
@@ -1325,8 +1339,14 @@ inline size_t gqa_smem_size_in_bytes(const Block_AttN_params<T> &params,
                                                     decltype(load_func),   \
                                                     decltype(store_func)>; \
   if (smem_sz > 0xc000) {                                                  \
-    cudaFuncSetAttribute(                                                  \
+    cudaError_t result = cudaFuncSetAttribute(                             \
         kernel_fn, cudaFuncAttributeMaxDynamicSharedMemorySize, smem_sz);  \
+    if (result != cudaSuccess) {                                           \
+      result = cudaGetLastError();                                         \
+      PADDLE_THROW(::common::errors::Unavailable(                          \
+          " cudaFuncSetAttribute() returned error %s",                     \
+          cudaGetErrorString(result)));                                    \
+    }                                                                      \
   }                                                                        \
   dim3 grid(params.q_num_head, params.batch_size);                         \
   kernel_fn<<<grid, THDS_PER_BLOCK, smem_sz, stream>>>(                    \
@@ -1365,8 +1385,14 @@ inline size_t gqa_smem_size_in_bytes(const Block_AttN_params<T> &params,
                                  decltype(load_func),                       \
                                  decltype(store_func)>;                     \
   if (smem_sz > 0xc000) {                                                   \
-    cudaFuncSetAttribute(                                                   \
+    cudaError_t result = cudaFuncSetAttribute(                              \
         kernel_fn, cudaFuncAttributeMaxDynamicSharedMemorySize, smem_sz);   \
+    if (result != cudaSuccess) {                                            \
+      result = cudaGetLastError();                                          \
+      PADDLE_THROW(::common::errors::Unavailable(                           \
+          " cudaFuncSetAttribute() returned error %s",                      \
+          cudaGetErrorString(result)));                                     \
+    }                                                                       \
   }                                                                         \
   dim3 grid(params.kv_num_head *GQA_NUM_SUB_PARTITIONS, params.batch_size); \
   kernel_fn<<<grid, THDS_PER_BLOCK, smem_sz, stream>>>(                     \
@@ -4316,14 +4342,14 @@ struct MaxOp {
 template <int THREADBLOCK_SIZE>
 __global__ void GetMaxLenKernel(const int *seq_lens,
                                 int *max_len,
-                                const int batch_size) {
-  const int tid = threadIdx.x;
+                                const int64_t batch_size) {
+  const int64_t tid = threadIdx.x;
 
   typedef cub::BlockReduce<int, THREADBLOCK_SIZE> BlockReduce;
   __shared__ typename BlockReduce::TempStorage temp_storage;
 
   int max_len_this_thread = 0;
-  for (int i = tid; i < batch_size; i += blockDim.x) {
+  for (int64_t i = tid; i < batch_size; i += blockDim.x) {
     max_len_this_thread = max(seq_lens[i], max_len_this_thread);
   }
   int total =
