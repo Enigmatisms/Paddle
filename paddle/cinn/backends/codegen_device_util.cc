@@ -134,6 +134,7 @@ struct PredicatePrinter : public ir::IrPrinter {
   void Visit(const ir::Or *x) { PrintBinaryOp("OR", x); }
   void Visit(const ir::Max *x) { PrintBinaryOp("MAX", x); }
   void Visit(const ir::Min *x) { PrintBinaryOp("MIN", x); }
+  void Visit(const ir::Call *x) { PrintCallOp(x); }
 
   template <typename IRN>
   void PrintBinaryOp(const std::string &op, const ir::BinaryOpNode<IRN> *x) {
@@ -142,6 +143,27 @@ struct PredicatePrinter : public ir::IrPrinter {
     str_ += op;
     ir::IrPrinter::Visit(x->b());
     str_ += "_BPA_";
+  }
+
+  void PrintCallOp(const ir::Call *x) {
+    str_ += "_BCALL_";
+    str_ += [&]() {
+      std::string temp = x->name;
+      std::transform(
+          temp.begin(), temp.end(), temp.begin(), [](unsigned char c) {
+            return std::toupper(c);
+          });
+      return temp;
+    }();
+    if (!x->read_args.empty()) {
+      str_ += "_R_";
+      for (const auto &v : x->read_args) ir::IrPrinter::Visit(v);
+    }
+    if (!x->write_args.empty()) {
+      str_ += "_W_";
+      for (const auto &v : x->write_args) ir::IrPrinter::Visit(v);
+    }
+    str_ += "_ECALL_";
   }
 };
 
@@ -177,6 +199,7 @@ std::string
 detail::CollectBucketStrategyHostFunctionVisitor::GenDeviceKernelName(
     const std::string &fn_name, ir::Expr predicate) {
   std::string cond_str = Predicate2String(predicate);
+  VLOG(4) << "Initial predicate: " << predicate << ", string: " << cond_str;
   // replace '-' with 'NEG'
   size_t pos = cond_str.find("-", 0);
   const std::string replacement_neg = "NEG";
@@ -212,6 +235,7 @@ void detail::CollectBucketStrategyHostFunctionVisitor::ProcessLoweredFunc(
     func_node->cuda_axis_info.set_valid(true);
   }
   // process device func
+  VLOG(4) << "HQY record predicate: " << predicate;
   device_module_builder.AddFunctionWithoutOptim(
       CreateDeviceFunction(func, predicate));
   // process host func
