@@ -160,6 +160,12 @@ struct CachedDimExprToValueConverter {
         "ConvertToValueImpl(symbol::Add<symbol::DimExpr>)"));
   }
 
+  pir::Value ConvertToValueImpl(const symbol::Abs<symbol::DimExpr>& dim_expr) {
+    const auto& [operand] = *dim_expr;
+    pir::Value acc = ConvertToValue(operand);
+    return rewriter->Build<paddle::dialect::AbsOp>(acc).out();
+  }
+
   pir::Value ConvertToValueImpl(const symbol::Add<symbol::DimExpr>& dim_expr) {
     const auto& [operands] = dim_expr;
     PADDLE_ENFORCE_GT(operands->size(),

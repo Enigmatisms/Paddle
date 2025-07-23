@@ -58,6 +58,12 @@ bool SearchBroadcastImpl(const symbol::Negative<symbol::DimExpr>& unary,
   return SearchBroadcastImplForUnary(unary, DoEach);
 }
 
+template <typename DoEachT>
+bool SearchBroadcastImpl(const symbol::Abs<symbol::DimExpr>& unary,
+                         const DoEachT& DoEach) {
+  return SearchBroadcastImplForUnary(unary, DoEach);
+}
+
 template <typename T, typename DoEachT>
 bool SearchBroadcastImplForVariadic(const T& variadic, const DoEachT& DoEach) {
   const auto& operands = *(variadic.operands);

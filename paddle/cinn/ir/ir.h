@@ -1214,6 +1214,7 @@ struct hash<cinn::ir::IndexExpr> {
         auto hash_rhs = std::hash<cinn::ir::IndexExpr>()(x.operand(1));
         return cinn::adt::hash_combine(hash_lhs, hash_rhs);
       }
+      case cinn::ir::IrNodeTy::Call:
       case cinn::ir::IrNodeTy::Load:
       case cinn::ir::IrNodeTy::Cast: {
         return reinterpret_cast<size_t>(x.get());

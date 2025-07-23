@@ -53,6 +53,9 @@ class IRVisitorRequireReImpl {
 
         NODETY_FORALL_INDEXEXPR(__)
 
+        case ir::IrNodeTy::Call:
+          return VisitIndexExpr(expr->As<ir::Call>(), args...);
+
         default:
           PADDLE_THROW(::common::errors::InvalidArgument(
               "not supported NodeTy in IndexExpr, the expr->node_type() = %s",
@@ -111,6 +114,7 @@ class IRVisitorRequireReImpl {
     return Visit(op, args...);                             \
   }
   NODETY_FORALL_INDEXEXPR(__)
+  __(Call)
 #undef __
 };
 

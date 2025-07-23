@@ -811,6 +811,14 @@ struct PirToPyCodeConverterHelper {
           ss << ")";
           return ss.str();
         },
+        [](const symbol::Abs<symbol::DimExpr>& abs_) {
+          std::ostringstream ss;
+          const auto& [operand] = *abs_;
+          ss << "self.s_abs(";
+          ss << PirToPyCodeConverterHelper::ConvertDimExpr(operand);
+          ss << ")";
+          return ss.str();
+        },
         [](const symbol::Add<symbol::DimExpr>& add) {
           std::ostringstream ss;
           ss << "self.s_add(";

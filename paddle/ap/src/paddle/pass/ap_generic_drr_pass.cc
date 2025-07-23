@@ -1132,6 +1132,10 @@ struct ApRewriter {
           return adt::errors::NotImplementedError{
               "symbol::Negative<symbol::DimExpr> not implemented."};
         },
+        [&](const symbol::Abs<symbol::DimExpr>& impl) -> adt::Result<AnfExpr> {
+          return adt::errors::NotImplementedError{
+              "symbol::Abs<symbol::DimExpr> not implemented."};
+        },
         [&](const symbol::Mul<symbol::DimExpr>& impl) -> adt::Result<AnfExpr> {
           return adt::errors::NotImplementedError{
               "symbol::Mul<symbol::DimExpr> not implemented."};

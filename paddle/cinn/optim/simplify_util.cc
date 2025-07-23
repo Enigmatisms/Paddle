@@ -78,6 +78,7 @@ bool IsSumPartialBySymbol(const ir::IndexExpr &expr,
     case ir::IrNodeTy::Max:
     case ir::IrNodeTy::Load:
     case ir::IrNodeTy::Cast:
+    case ir::IrNodeTy::Call:
       return false;
     default:
       PADDLE_THROW(::common::errors::InvalidArgument(
@@ -160,6 +161,7 @@ bool IsDivisibleBySymbol(const ir::IndexExpr &expr,
     case ir::IrNodeTy::Min:
     case ir::IrNodeTy::Max:
     case ir::IrNodeTy::Load:
+    case ir::IrNodeTy::Call:
     case ir::IrNodeTy::Cast:
       return false;
     default:
@@ -253,6 +255,11 @@ ir::IndexExpr::IndexType VerifyIndex(const ir::Expr &expr) {
                  ? ir::IndexExpr::IndexType::kCast
                  : ir::IndexExpr::IndexType::kInvalid;
     }
+    case ir::IrNodeTy::Call: {
+      auto call = expr.As<ir::Call>();
+      if (call->name != "abs") return ir::IndexExpr::IndexType::kInvalid;
+      return VerifyIndex(call->read_args.at(0));
+    }
     case ir::IrNodeTy::Add:
     case ir::IrNodeTy::Sub:
     case ir::IrNodeTy::Mul:
@@ -302,6 +309,7 @@ ir::IndexExpr ChangeSeqOfDivMod(const ir::IndexExpr &expr) {
     case ir::IrNodeTy::IntImm:
     case ir::IrNodeTy::_Var_:
     case ir::IrNodeTy::Cast:
+    case ir::IrNodeTy::Call:
     case ir::IrNodeTy::Load: {
       return expr;
     }
@@ -375,6 +383,7 @@ std::optional<ir::IndexExpr> SimplifyComplexMod(const ir::IndexExpr &lhs,
     case ir::IrNodeTy::Min:
     case ir::IrNodeTy::Max:
     case ir::IrNodeTy::Load:
+    case ir::IrNodeTy::Call:
     case ir::IrNodeTy::Cast: {
       return std::nullopt;
     }

@@ -223,6 +223,13 @@ struct ArgSourceHelper {
 
   adt::Result<axpr::LetVar*> MakeGetterAnfExprByDimExprImpl(
       axpr::LetVar* dispatch_ctx,
+      const symbol::Abs<symbol::DimExpr>& dim_expr) const {
+    return adt::errors::NotImplementedError{
+        "Dead code. Abs dim_expr is not supported yet."};
+  }
+
+  adt::Result<axpr::LetVar*> MakeGetterAnfExprByDimExprImpl(
+      axpr::LetVar* dispatch_ctx,
       const symbol::Add<symbol::DimExpr>& dim_expr) const {
     const auto& [operands] = dim_expr;
     ADT_CHECK(operands->size() > 0);

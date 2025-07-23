@@ -31,6 +31,11 @@ std::string GetSerializedTag<Negative<DimExpr>>() {
 }
 
 template <>
+std::string GetSerializedTag<Abs<DimExpr>>() {
+  return "Abs";
+}
+
+template <>
 std::string GetSerializedTag<Add<DimExpr>>() {
   return "Add";
 }
@@ -94,6 +99,11 @@ template <typename T>
 
 ::pir::Attribute ConvertDimExprToAttributeImpl(
     ::pir::IrContext* ctx, const Negative<DimExpr>& dim_expr) {
+  return ConvertUnaryDimExprToAttributeImpl(ctx, dim_expr);
+}
+
+::pir::Attribute ConvertDimExprToAttributeImpl(::pir::IrContext* ctx,
+                                               const Abs<DimExpr>& dim_expr) {
   return ConvertUnaryDimExprToAttributeImpl(ctx, dim_expr);
 }
 
@@ -204,6 +214,8 @@ std::optional<ArrayAttributeConverterT> GetArrayAttributeConverter(
   static std::unordered_map<std::string, ArrayAttributeConverterT> map{
       {GetSerializedTag<Negative<DimExpr>>(),
        &ConvertArrayAttributeToUnaryDimExpr<Negative<DimExpr>>},
+      {GetSerializedTag<Abs<DimExpr>>(),
+       &ConvertArrayAttributeToUnaryDimExpr<Abs<DimExpr>>},
       {GetSerializedTag<Add<DimExpr>>(),
        &ConvertArrayAttributeToVariadicDimExpr<Add<DimExpr>>},
       {GetSerializedTag<Mul<DimExpr>>(),
@@ -303,6 +315,10 @@ class SubstituteDimExprHelper final {
   }
 
   std::optional<DimExpr> SubstituteImpl(const Negative<DimExpr>& dim_expr) {
+    return SubstituteUnary(dim_expr);
+  }
+
+  std::optional<DimExpr> SubstituteImpl(const Abs<DimExpr>& dim_expr) {
     return SubstituteUnary(dim_expr);
   }
 
@@ -457,6 +473,8 @@ bool IsAtomicImpl(const std::string&) { return true; }
 
 bool IsAtomicImpl(const symbol::Negative<symbol::DimExpr>&) { return false; }
 
+bool IsAtomicImpl(const symbol::Abs<symbol::DimExpr>&) { return false; }
+
 bool IsAtomicImpl(const symbol::Add<symbol::DimExpr>&) { return false; }
 
 bool IsAtomicImpl(const symbol::Mul<symbol::DimExpr>&) { return false; }
@@ -525,6 +543,11 @@ void CollectSymbolNamesImplForUnary(const T& dim_expr,
 }
 
 void CollectSymbolNamesImpl(const symbol::Negative<symbol::DimExpr>& dim_expr,
+                            std::set<std::string>* ret) {
+  CollectSymbolNamesImplForUnary(dim_expr, ret);
+}
+
+void CollectSymbolNamesImpl(const symbol::Abs<symbol::DimExpr>& dim_expr,
                             std::set<std::string>* ret) {
   CollectSymbolNamesImplForUnary(dim_expr, ret);
 }

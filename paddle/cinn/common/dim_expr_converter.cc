@@ -45,6 +45,15 @@ struct DimExprToIrExprVisitor {
     return ir::Sub::Make(ir::Expr(std::int64_t(0)), ConvertToIrExpr(operand));
   }
 
+  ir::Expr operator()(const Abs<DimExpr>& dim_expr) {
+    const auto& [operand] = *dim_expr;
+    return ir::Call::Make(common::Int(64),
+                          "abs",
+                          {ConvertToIrExpr(operand)},
+                          {},
+                          ir::CallType::Intrinsic);
+  }
+
   ir::Expr operator()(const Add<DimExpr>& dim_expr) {
     const auto& [operands] = dim_expr;
     if (operands->empty()) {

@@ -152,6 +152,11 @@ struct ArgSourceCtxImpl {
     return HasDirectOrIndirectUnaryDimExprSource(dim_expr);
   }
 
+  using Abs = symbol::Abs<symbol::DimExpr>;
+  bool HasDirectOrIndirectDimExprSourceImpl(const Abs& dim_expr) const {
+    return HasDirectOrIndirectUnaryDimExprSource(dim_expr);
+  }
+
   template <typename T>
   bool HasDirectOrIndirectUnaryDimExprSource(const T& dim_expr) const {
     const auto& [operand] = *dim_expr;

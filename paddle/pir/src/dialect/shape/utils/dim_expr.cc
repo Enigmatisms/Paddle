@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-
 #include "paddle/pir/include/dialect/shape/utils/dim_expr.h"
+#include <cstdlib>
 #include "paddle/pir/include/core/utils.h"
 #include "paddle/pir/include/dialect/shape/utils/dim_expr_util.h"
 
@@ -53,6 +53,14 @@ DimExpr DimExpr::operator/(const DimExpr& other) const {
   return SimplifyDimExpr(div_expr);
 }
 
+DimExpr DimExpr::Absolute() const {
+  if (this->isa<std::int64_t>()) {
+    return std::abs(this->dyn_cast<std::int64_t>());
+  }
+  DimExpr abs_expr = Abs<DimExpr>(*this);
+  return SimplifyDimExpr(abs_expr);
+}
+
 namespace {
 
 bool DimExprEqual(std::int64_t lhs, std::int64_t rhs) { return lhs == rhs; }
@@ -62,6 +70,10 @@ bool DimExprEqual(const std::string& lhs, const std::string& rhs) {
 }
 
 bool DimExprEqual(const Negative<DimExpr>& lhs, const Negative<DimExpr>& rhs) {
+  return lhs->data == rhs->data;
+}
+
+bool DimExprEqual(const Abs<DimExpr>& lhs, const Abs<DimExpr>& rhs) {
   return lhs->data == rhs->data;
 }
 
@@ -147,6 +159,9 @@ std::string ToString(const DimExpr& dim_expr) {
       [](const Negative<DimExpr>& dim_expr) {
         return "-" + ToString(dim_expr->data);
       },
+      [](const Abs<DimExpr>& dim_expr) {
+        return "Abs(" + ToString(dim_expr->data) + ")";
+      },
       [](const Add<DimExpr>& dim_expr) {
         return "Add(" + ListDimExprToString(dim_expr.operands, ", ") + ")";
       },
@@ -199,6 +214,10 @@ std::size_t GetHashValueImpl(const std::string& dim_expr) {
 
 std::size_t GetHashValueImpl(const Negative<DimExpr>& dim_expr) {
   return -GetHashValue(dim_expr->data);
+}
+
+std::size_t GetHashValueImpl(const Abs<DimExpr>& dim_expr) {
+  return abs(GetHashValue(dim_expr->data));
 }
 
 std::size_t GetHashValueImpl(const List<DimExpr>& exprs) {

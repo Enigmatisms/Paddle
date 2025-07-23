@@ -444,6 +444,7 @@ int32_t IndexExpr::length() const {
   switch (node_type()) {
     case ir::IrNodeTy::_Var_:
     case ir::IrNodeTy::IntImm:
+    case ir::IrNodeTy::Call:
     case ir::IrNodeTy::Load:
       return 1;
     case ir::IrNodeTy::Add:
@@ -484,6 +485,9 @@ bool IndexExpr::IsDynamic() const {
       auto lFlag = operand(0).IsDynamic();
       auto rFlag = operand(1).IsDynamic();
       return lFlag || rFlag;
+    }
+    case ir::IrNodeTy::Call: {
+      return true;
     }
     default:
       PADDLE_THROW(::common::errors::InvalidArgument(
@@ -544,6 +548,15 @@ IndexExpr Simplify(const IndexExpr &expr, IndexExpr::OptLevel level) {
         res = optim::BroadcastSimplify(res);
       }
       return res;
+    }
+    case ir::IrNodeTy::Call: {
+      auto call = expr.As<ir::Call>();
+      if (call->name != "abs") {
+        PADDLE_THROW(::common::errors::InvalidArgument(
+            "Unsupported type of call in Simplify which is: %s",
+            call->name.c_str()));
+      }
+      return expr;
     }
     default:
       PADDLE_THROW(::common::errors::InvalidArgument(

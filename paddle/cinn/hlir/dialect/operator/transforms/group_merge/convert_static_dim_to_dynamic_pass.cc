@@ -198,6 +198,11 @@ struct StaticDimToDynamicConverter {
     return AppliedOnceUnaryImpl(dim_expr, symbol);
   }
 
+  bool AppliedOnceImpl(const symbol::Abs<symbol::DimExpr>& dim_expr,
+                       const std::string& symbol) {
+    return AppliedOnceUnaryImpl(dim_expr, symbol);
+  }
+
   template <typename T>
   bool AppliedOnceBinaryImpl(const T& dim_expr, const std::string& symbol) {
     const auto& lhs = dim_expr->lhs;
@@ -316,6 +321,13 @@ struct StaticDimToDynamicConverter {
 
   std::optional<symbol::DimExpr> ConvertDimExprImpl(
       const symbol::Negative<symbol::DimExpr>& dim_expr,
+      int64_t c,
+      const std::string& symbol) {
+    return ConvertUnaryDimExprImpl(dim_expr, c, symbol);
+  }
+
+  std::optional<symbol::DimExpr> ConvertDimExprImpl(
+      const symbol::Abs<symbol::DimExpr>& dim_expr,
       int64_t c,
       const std::string& symbol) {
     return ConvertUnaryDimExprImpl(dim_expr, c, symbol);

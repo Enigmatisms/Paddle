@@ -139,6 +139,9 @@ struct ShapeSignatureGenerator {
         [&](const symbol::Negative<symbol::DimExpr>& negative) {
           GetSymbolsForOneDimExpr(negative->data, symbols);
         },
+        [&](const symbol::Abs<symbol::DimExpr>& abs_) {
+          GetSymbolsForOneDimExpr(abs_->data, symbols);
+        },
         [&](const symbol::Add<symbol::DimExpr>& add) {
           for (const auto& dim_expr : *add.operands) {
             GetSymbolsForOneDimExpr(dim_expr, symbols);

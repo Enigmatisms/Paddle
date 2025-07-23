@@ -58,7 +58,10 @@ bool ArangeOpInferSymbolicShape(pir::Operation *op,
     std::vector<symbol::DimExpr> out_dims;
     // Use ceiling div to avoid incorrect shape calculation
     // introduced by rounded division
-    out_dims.emplace_back((end - start + step - 1) / step);
+    auto abs_step = step.Absolute();
+    auto res = ((end - start).Absolute() + abs_step - 1) / abs_step;
+    VLOG(4) << "HQY Dynamic record: " << res;
+    out_dims.emplace_back(res);
     return symbol::ShapeOrDataDimExprs{
         symbol::TensorShapeOrDataDimExprs(out_dims)};
   }();

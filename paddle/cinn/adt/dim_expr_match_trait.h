@@ -80,6 +80,10 @@ struct MatchTrait<DimExpr, ::symbol::Negative<T0>> final
     : public UnaryDimExprMatchTrait<::symbol::Negative, T0> {};
 
 template <typename T0>
+struct MatchTrait<DimExpr, ::symbol::Abs<T0>> final
+    : public UnaryDimExprMatchTrait<::symbol::Abs, T0> {};
+
+template <typename T0>
 struct MatchTrait<DimExpr, ::symbol::Add<T0>> final
     : public ListDimExprMatchTrait<::symbol::Add, T0> {};
 

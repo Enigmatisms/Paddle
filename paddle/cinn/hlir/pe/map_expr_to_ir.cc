@@ -953,6 +953,13 @@ class MapExprToIrTranslator {
     return ir::Sub::Make(ir::Expr(0), inner_expr);
   }
 
+  ir::Expr TranslateDimExprImpl(const ::symbol::Abs<DimExpr>& dim_expr) const {
+    const auto& [inner_dim_expr] = *dim_expr;
+    ir::Expr inner_expr = TranslateDimExpr(inner_dim_expr);
+    return ir::Call::Make(
+        common::Int(64), "abs", {inner_expr}, {}, ir::CallType::Intrinsic);
+  }
+
   ir::Expr TranslateDimExprImpl(const ::symbol::Add<DimExpr>& dim_expr) const {
     std::vector<ir::Expr> ir_exprs{};
     const auto& [exprs] = dim_expr;

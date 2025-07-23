@@ -120,6 +120,11 @@ struct Negative final : public UnaryDimExpr<T> {
 };
 
 template <typename T>
+struct Abs final : public UnaryDimExpr<T> {
+  using UnaryDimExpr<T>::UnaryDimExpr;
+};
+
+template <typename T>
 struct Add final {
   List<T> operands;
 };
@@ -170,6 +175,7 @@ class DimExpr;
 // DimExpr = std::int64_t
 //         | std::string
 //         | Negative DimExpr
+//         | Abs DimExpr
 //         | Add DimExpr
 //         | Mul DimExpr
 //         | Div DimExpr
@@ -179,6 +185,7 @@ class DimExpr;
 using DimExprBase = std::variant<std::int64_t,
                                  std::string,
                                  Negative<DimExpr>,
+                                 Abs<DimExpr>,
                                  Add<DimExpr>,
                                  Mul<DimExpr>,
                                  Div<DimExpr>,
@@ -222,6 +229,7 @@ class IR_API DimExpr : public DimExprBase {
   DimExpr operator/(const DimExpr& other) const;
   bool operator==(const DimExpr& other) const;
   bool operator!=(const DimExpr& other) const;
+  DimExpr Absolute() const;
 };
 
 // DimExprConstraint = Equal DimExpr

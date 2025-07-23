@@ -13,6 +13,7 @@
 // limitations under the License.
 
 #include <atomic>
+#include <fstream>
 #include "gtest/gtest.h"
 #include "paddle/pir/include/dialect/shape/utils/dim_expr_util.h"
 
@@ -234,6 +235,61 @@ TEST(Simplify, SimplifyDoubleNegForMulAndDiv) {
   DimExpr neg_div{Negative<DimExpr>{div}};
   DimExpr simplify_neg_div = SimplifyDimExpr(neg_div);
   ASSERT_TRUE((simplify_neg_div == S0));
+}
+
+TEST(Simplify, NestedAbsoluteCase) {
+  // Abs(Abs(Mul(Abs(S0), Mul(Negative(2), S1)))) => Mul(Abs(S0), 2, Abs(S1))
+  DimExpr S0{"S0"}, S1{"S1"}, neg_2{Negative<DimExpr>{2}};
+  DimExpr mul_opr2{neg_2 * S1};
+  DimExpr target1{S0.Absolute() * mul_opr2};
+  DimExpr simplify_abs_nests = SimplifyDimExpr(target1.Absolute().Absolute());
+  ASSERT_TRUE((simplify_abs_nests ==
+               Mul<DimExpr>{{Abs<DimExpr>{S0}, Abs<DimExpr>{S1}, 2}}));
+
+  // Abs(Mul(Abs(Negative(Abs(Abs(S0))))), Abs(Negative(1))) => Abs(S0)
+  DimExpr neg_abs{Negative<DimExpr>{S0.Absolute().Absolute()}};
+  DimExpr neg_1{Negative<DimExpr>{1}};
+  DimExpr target2{neg_abs.Absolute() * neg_1.Absolute()};
+  DimExpr simplify_abs_neg = SimplifyDimExpr(target2.Absolute());
+  ASSERT_TRUE((simplify_abs_neg == Abs<DimExpr>{S0}));
+}
+
+TEST(Simplify, AbsoluteGeneralCases) {
+  using AddOp = Add<DimExpr>;
+  using AbsOp = Abs<DimExpr>;
+  using MulOp = Mul<DimExpr>;
+  using DivOp = Div<DimExpr>;
+  using NegOp = Negative<DimExpr>;
+  // Arange Op: (Abs(end - start) + Abs(step) - 1) / Abs(step)
+  // now, start = S0 * 2, end = S1 - 3, step = -1 * S2
+  DimExpr start{MulOp{{"S0", DimExpr(2)}}},
+      end{AddOp{{"S1", NegOp{DimExpr(3)}}}},
+      step{MulOp{{NegOp{DimExpr(1)}, "S2"}}};
+  DimExpr target{((end - start).Absolute() + step.Absolute() - 1) /
+                 step.Absolute()};
+  DimExpr simplify_abs_general_1 = SimplifyDimExpr(target);
+  // Div(Add(Abs(Add(Add(S1, -3), -Mul(S0, 2))), Abs(S2), -1), Abs(S2))
+  DimExpr expected{DivOp{
+      AddOp{{
+          AbsOp{AddOp{{"S1", -3, NegOp{MulOp{{"S0", 2}}}}}},
+          AbsOp{"S2"},
+          -1,
+      }},
+      AbsOp{"S2"},
+  }};
+  ASSERT_TRUE(simplify_abs_general_1 == expected);
+
+  // General case 2: Abs(S0 * -2) + Abs(Div((3 * S0), Neg(1))) + Abs(S1 * S0) =>
+  // Abs(S0) * (Abs(S1) + 5)
+  DimExpr S0{"S0"}, S1{"S1"};
+  DimExpr target2{((S0 * -2) * -3 * -4).Absolute() +
+                  ((S1 * 3) / -1).Absolute()};
+  DimExpr simplify_abs_general_2 = SimplifyDimExpr(target2.Absolute());
+  DimExpr expected2{AbsOp{AddOp{{
+      MulOp{{AbsOp{S0}, 24}},
+      MulOp{{AbsOp{S1}, 3}},
+  }}}};
+  ASSERT_TRUE(simplify_abs_general_2 == expected2);
 }
 
 TEST(Simplify, Case1) {
