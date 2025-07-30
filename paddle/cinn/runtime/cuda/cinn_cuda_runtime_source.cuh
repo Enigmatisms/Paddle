@@ -897,6 +897,16 @@ WELFORD_PARALLEL_COMBINE_MACRO(double, fp64)
 
 #undef WELFORD_PARALLEL_COMBINE_MACRO
 
+__device__ void cinn_insert_sort_fp32(const float *__restrict__ input_tensor,
+                                      argidx_fp32_i64 *local_sorted,
+                                      int num_element,
+                                      int buffer_size,
+                                      int offset,
+                                      int stride,
+                                      bool largest) {
+  // TODO
+}
+
 #define EXPAND_REDUCE_BOOL_MACRO(MACRO, ...) \
   MACRO(all, true, bool, ##__VA_ARGS__)      \
   MACRO(any, false, bool, ##__VA_ARGS__)
