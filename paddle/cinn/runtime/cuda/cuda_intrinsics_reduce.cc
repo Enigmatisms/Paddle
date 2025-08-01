@@ -176,5 +176,47 @@ CINN_REGISTER_HELPER(cuda_intrinsics_reduce) {
 #undef EXPAND_REDUCE_INT16_REGISTER_MACRO
 #undef EXPAND_ARG_REDUCE_MACRO
 
+#define REGISTER_INSERTION_SORT_IMPL(TYPE, TYPENAME, REDUCE_TYPE) \
+  REGISTER_FACKED_EXTERN_FUNC_HELPER(                             \
+      cinn_nvgpu_insertion_sort_##TYPE##_##REDUCE_TYPE, target)   \
+      .SetRetType<void>()                                         \
+      .AddInputType<cinn_buffer_t *>()                            \
+      .AddOutputType<argidx_##TYPENAME_i64 *>()                   \
+      .AddInputType<int>()                                        \
+      .AddInputType<int>()                                        \
+      .AddInputType<int>()                                        \
+      .AddInputType<int>()                                        \
+      .End();
+#define REGISTER_SPECIFIED_SORT_FUNC(REDUCE_TYPE)         \
+  REGISTER_INSERTION_SORT_IMPL(float, fp32, REDUCE_TYPE)  \
+  REGISTER_INSERTION_SORT_IMPL(double, fp64, REDUCE_TYPE) \
+  REGISTER_INSERTION_SORT_IMPL(int, i32, REDUCE_TYPE)     \
+  REGISTER_INSERTION_SORT_IMPL(int64_t, i64, REDUCE_TYPE)
+
+  REGISTER_SPECIFIED_SORT_FUNC(max)
+  REGISTER_SPECIFIED_SORT_FUNC(min)
+
+#undef REGISTER_SPECIFIED_SORT_FUNC
+#undef REGISTER_INSERTION_SORT_IMPL
+
+#define RSGISTER_MERGE_ARRAY_FUNC(TYPE, TYPENAME, REDUCE_TYPE)  \
+  REGISTER_FACKED_EXTERN_FUNC_HELPER(                           \
+      cinn_nvgpu_insertion_sort_##TYPE##_##REDUCE_TYPE, target) \
+      .SetRetType<void>()                                       \
+      .AddOutputType<argidx_##TYPENAME_i64 *>()                 \
+      .AddInputType<int>()                                      \
+      .AddInputType<int>()                                      \
+      .AddInputType<int>()                                      \
+      .AddInputType<int>()                                      \
+      .End();
+#define REGISTER_SPECIFIED_SORT_FUNC(REDUCE_TYPE)         \
+  REGISTER_INSERTION_SORT_IMPL(float, fp32, REDUCE_TYPE)  \
+  REGISTER_INSERTION_SORT_IMPL(double, fp64, REDUCE_TYPE) \
+  REGISTER_INSERTION_SORT_IMPL(int, i32, REDUCE_TYPE)     \
+  REGISTER_INSERTION_SORT_IMPL(int64_t, i64, REDUCE_TYPE)
+
+  REGISTER_SPECIFIED_SORT_FUNC(max)
+  REGISTER_SPECIFIED_SORT_FUNC(min)
+
   return true;
 }

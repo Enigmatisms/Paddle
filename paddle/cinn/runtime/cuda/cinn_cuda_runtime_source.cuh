@@ -897,15 +897,62 @@ WELFORD_PARALLEL_COMBINE_MACRO(double, fp64)
 
 #undef WELFORD_PARALLEL_COMBINE_MACRO
 
-__device__ void cinn_insert_sort_fp32(const float *__restrict__ input_tensor,
-                                      argidx_fp32_i64 *local_sorted,
-                                      int num_element,
-                                      int buffer_size,
-                                      int offset,
-                                      int stride,
-                                      bool largest) {
-  // TODO
-}
+#define INSERTION_SORT_MAX_TEMPLATE_IMPL(InType, type_name)    \
+  __device__ void cinn_nvgpu_insertion_sort_##type_name##_max( \
+      const InType *__restrict__ input_tensor,                 \
+      argidx_##type_name##_i64 *local_sorted,                  \
+      int num_element,                                         \
+      int buffer_size,                                         \
+      int offset,                                              \
+      int stride) {}
+
+INSERTION_SORT_MAX_TEMPLATE_IMPL(int, i32)
+INSERTION_SORT_MAX_TEMPLATE_IMPL(int64_t, i64)
+INSERTION_SORT_MAX_TEMPLATE_IMPL(float, fp32)
+INSERTION_SORT_MAX_TEMPLATE_IMPL(double, fp64)
+#undef INSERTION_SORT_MAX_TEMPLATE_IMPL
+#define INSERTION_SORT_MIN_TEMPLATE_IMPL(InType, type_name)    \
+  __device__ void cinn_nvgpu_insertion_sort_##type_name##_min( \
+      const InType *__restrict__ input_tensor,                 \
+      argidx_##type_name##_i64 *local_sorted,                  \
+      int num_element,                                         \
+      int buffer_size,                                         \
+      int offset,                                              \
+      int stride) {}
+
+INSERTION_SORT_MIN_TEMPLATE_IMPL(int, i32)
+INSERTION_SORT_MIN_TEMPLATE_IMPL(int64_t, i64)
+INSERTION_SORT_MIN_TEMPLATE_IMPL(float, fp32)
+INSERTION_SORT_MIN_TEMPLATE_IMPL(double, fp64)
+#undef INSERTION_SORT_MIN_TEMPLATE_IMPL
+
+// TODO(heqianyue): we might need warp / block / grid merge templates
+#define MERGE_SORTED_MAX_TEMPLATE_IMPL(InType, type_name)    \
+  __device__ void cinn_nvgpu_merge_sorted_##type_name##_max( \
+      argidx_##type_name##_i64 *local_sorted,                \
+      int buffer_size,                                       \
+      int topk,                                              \
+      int offset,                                            \
+      int stride) {}
+
+MERGE_SORTED_MAX_TEMPLATE_IMPL(int, i32)
+MERGE_SORTED_MAX_TEMPLATE_IMPL(int64_t, i64)
+MERGE_SORTED_MAX_TEMPLATE_IMPL(float, fp32)
+MERGE_SORTED_MAX_TEMPLATE_IMPL(double, fp64)
+#undef MERGE_SORTED_MAX_TEMPLATE_IMPL
+#define MERGE_SORTED_MIN_TEMPLATE_IMPL(InType, type_name)    \
+  __device__ void cinn_nvgpu_merge_sorted_##type_name##_min( \
+      argidx_##type_name##_i64 *local_sorted,                \
+      int buffer_size,                                       \
+      int topk,                                              \
+      int offset,                                            \
+      int stride) {}
+
+MERGE_SORTED_MIN_TEMPLATE_IMPL(int, i32)
+MERGE_SORTED_MIN_TEMPLATE_IMPL(int64_t, i64)
+MERGE_SORTED_MIN_TEMPLATE_IMPL(float, fp32)
+MERGE_SORTED_MIN_TEMPLATE_IMPL(double, fp64)
+#undef MERGE_SORTED_MIN_TEMPLATE_IMPL
 
 #define EXPAND_REDUCE_BOOL_MACRO(MACRO, ...) \
   MACRO(all, true, bool, ##__VA_ARGS__)      \
