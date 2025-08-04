@@ -927,26 +927,32 @@ INSERTION_SORT_MIN_TEMPLATE_IMPL(double, fp64)
 #undef INSERTION_SORT_MIN_TEMPLATE_IMPL
 
 // TODO(heqianyue): we might need warp / block / grid merge templates
-#define MERGE_SORTED_MAX_TEMPLATE_IMPL(InType, type_name)    \
-  __device__ void cinn_nvgpu_merge_sorted_##type_name##_max( \
-      argidx_##type_name##_i64 *local_sorted,                \
-      int buffer_size,                                       \
-      int topk,                                              \
-      int offset,                                            \
-      int stride) {}
+#define MERGE_SORTED_MAX_TEMPLATE_IMPL(InType, type_name)        \
+  __device__ void cinn_nvgpu_merge_sorted_##type_name##_max(     \
+      const argidx_##type_name##_i64 *__restrict__ local_sorted, \
+      argidx_##type_name##_i64 *__restrict__ shm_merge_buffer,   \
+      int *__restrict__ merge_ptr_buffer,                        \
+      int buffer_size,                                           \
+      int topk,                                                  \
+      int offset,                                                \
+      int stride,                                                \
+      int ptr_offset = 0) {}
 
 MERGE_SORTED_MAX_TEMPLATE_IMPL(int, i32)
 MERGE_SORTED_MAX_TEMPLATE_IMPL(int64_t, i64)
 MERGE_SORTED_MAX_TEMPLATE_IMPL(float, fp32)
 MERGE_SORTED_MAX_TEMPLATE_IMPL(double, fp64)
 #undef MERGE_SORTED_MAX_TEMPLATE_IMPL
-#define MERGE_SORTED_MIN_TEMPLATE_IMPL(InType, type_name)    \
-  __device__ void cinn_nvgpu_merge_sorted_##type_name##_min( \
-      argidx_##type_name##_i64 *local_sorted,                \
-      int buffer_size,                                       \
-      int topk,                                              \
-      int offset,                                            \
-      int stride) {}
+#define MERGE_SORTED_MIN_TEMPLATE_IMPL(InType, type_name)        \
+  __device__ void cinn_nvgpu_merge_sorted_##type_name##_min(     \
+      const argidx_##type_name##_i64 *__restrict__ local_sorted, \
+      argidx_##type_name##_i64 *__restrict__ shm_merge_buffer,   \
+      int *__restrict__ merge_ptr_buffer,                        \
+      int buffer_size,                                           \
+      int topk,                                                  \
+      int offset,                                                \
+      int stride,                                                \
+      int ptr_offset = 0) {}
 
 MERGE_SORTED_MIN_TEMPLATE_IMPL(int, i32)
 MERGE_SORTED_MIN_TEMPLATE_IMPL(int64_t, i64)

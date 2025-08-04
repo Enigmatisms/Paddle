@@ -53,11 +53,10 @@ inline common::Type GetArgIdxType(const Type &elem_type) {
   return customized_type;
 }
 
-Expr CallExternWithLocalTensor(const std::string &func_name,
-                               const std::vector<Expr> &args,
-                               ir::Tensor local_array) {
-  // a CallExtern variant to call insertion sort extern function, which has void
-  // return type, but a output arg (argidx_xxx_i64*)
+Expr CallExternWithWriteArgs(const std::string &func_name,
+                             std::vector<Expr> &&read_args,
+                             std::vector<Expr> &&write_args,
+                             const std::map<std::string, attr_t> &attrs) {
   auto *proto =
       backends::ExternFunctionProtoRegistry::Global().Lookup(func_name);
   PADDLE_ENFORCE_NOT_NULL(
@@ -67,31 +66,54 @@ Expr CallExternWithLocalTensor(const std::string &func_name,
           func_name,
           backends::ExternFunctionProtoRegistry::Global().debug_string()));
   PADDLE_ENFORCE_EQ(
-      proto->mutable_arg_types.size(),
-      1,
-      ::common::errors::InvalidArgument("function '%s' output argument size is "
-                                        "not 1 (actual: %lu), please check",
-                                        func_name,
-                                        proto->mutable_arg_types.size()));
-  PADDLE_ENFORCE_EQ(
       proto->ret_type.is_void(),
       true,
       ::common::errors::InvalidArgument(
-          "function '%s' does not return void, please check", func_name));
+          "Function '%s' does not return void, please check", func_name));
+  PADDLE_ENFORCE_NE(
+      write_args.empty(),
+      true,
+      ::common::errors::InvalidArgument(
+          "Function '%s' write args should not be empty, please check",
+          func_name));
+  PADDLE_ENFORCE_EQ(
+      write_args.size(),
+      proto->mutable_arg_types.size(),
+      ::common::errors::InvalidArgument(
+          "Input write args size (%lu) is not expected (%lu) for function '%s'",
+          write_args.size(),
+          proto->mutable_arg_types.size(),
+          func_name));
 
   auto call = ir::Call::Make(proto->ret_type,
                              func_name,
-                             args,
+                             std::move(read_args),
                              {},
                              ir::CallType::Extern,
                              ir::FunctionRef(),
                              0,
-                             {});
+                             attrs);
+  for (size_t i = 0; i < write_args.size(); i++) {
+    auto arg_expr = write_args[i];
+    if (arg_expr.As<ir::Tensor>() == nullptr) continue;
+    auto tensor = arg_expr.as_tensor_ref();
+    auto expected_type = proto->mutable_arg_types[i];
+    auto actual_type = tensor->type();
+    PADDLE_ENFORCE_EQ(
+        expected_type,
+        actual_type,
+        ::common::errors::InvalidArgument("Function '%s' write arg (%lu) type "
+                                          "mismatch: expected '%s', got '%s'",
+                                          func_name,
+                                          expected_type.to_string().c_str(),
+                                          actual_type.to_string().c_str()));
+    auto op = ir::CallOp::Make(func_name, call);
+    op->as<ir::CallOp>()->value_slot = i;
+    op->as<ir::CallOp>()->is_tuple_get = true;
+    tensor->operation = std::move(op);
+  }
+  call.As<ir::Call>()->write_args = std::move(write_args);
 
-  auto op = ir::CallOp::Make(func_name, call);
-  op->as<ir::CallOp>()->value_slot = 0;
-  op->as<ir::CallOp>()->is_tuple_get = true;
-  call.As<ir::Call>()->write_args = {local_array};
   return call;
 }
 
@@ -109,9 +131,6 @@ ir::Tensor ComputeWithLocalBuffer(const ir::Tensor &input_tensor,
           << "'s domain is : " << argidx_buffer_size;
   // local tensor is actually small (avoid using excessive amount of local
   // memory)
-  auto local_array = ir::Tensor(
-      unique_name, output_type, local_shape, local_shape, ir::FunctionRef());
-  local_array->WithBuffer("local", unique_name + "_buffer", output_type);
 
   auto op = ir::ComputeOp::Make(
       unique_name,
@@ -127,16 +146,12 @@ ir::Tensor ComputeWithLocalBuffer(const ir::Tensor &input_tensor,
         offset = optim::ArithSimplify(offset);
         stride = optim::ArithSimplify(stride);
 
-        // TODO(heqianyue): should we have `local_array` present here?
-        std::vector<Expr> func_args = {input_tensor,
-                                       local_array,
-                                       num_elements,
-                                       argidx_buffer_size,
-                                       offset,
-                                       stride};
+        std::vector<Expr> func_args = {
+            input_tensor, num_elements, argidx_buffer_size, offset, stride};
         // TODO(heqianyue): is this good to have looped dependency:
         // local_array->operation (ComputeOp) needs local array itself
-        return CallExternWithLocalTensor(sort_func_name, func_args, local_array)
+        return CallExternWithWriteArgs(
+            sort_func_name, std::move(func_args), {local_array})
       },
       local_shape,
       local_shape,
@@ -149,12 +164,12 @@ ir::Tensor ComputeWithLocalBuffer(const ir::Tensor &input_tensor,
   return local_array;
 }
 
-ir::Tensor TopK(const ir::Tensor &A,
-                const cinn::common::Target &target,
-                const int &axis,
-                const int topk,
-                const bool largest,
-                const std::string &name) {
+std::vector<ir::Tensor> TopK(const ir::Tensor &A,
+                             const cinn::common::Target &target,
+                             const int &axis,
+                             const int topk,
+                             const bool largest,
+                             const std::string &name) {
   std::string insert_sort_func;
   std::string block_reduce_func;
 #define THROW_WITH_UNSUPPORTED_TARGET(arch)             \
@@ -162,6 +177,9 @@ ir::Tensor TopK(const ir::Tensor &A,
     PADDLE_THROW(::common::errors::Fatal(               \
         "TopK only supports NVGPU ! Please Check.\n")); \
   }
+
+  // TODO(heqianyue): cinn_nvgpu_merge_sorted might need a optimization pass to
+  // decide whether we need block reduce merge or grid reduce merge
 
   target.arch.Match(THROW_WITH_UNSUPPORTED_TARGET(UnknownArch),
                     THROW_WITH_UNSUPPORTED_TARGET(X86Arch),
@@ -191,9 +209,8 @@ ir::Tensor TopK(const ir::Tensor &A,
       ::common::errors::Fatal("TopK topk value should be less than or equal to "
                               "the length of the axis dimension."));
 
-  const int argidx_buffer_size = std::min(8, topk);
-  // first insertion sort the topk elements in each thread, stored in local
-  // buffer
+  const int argidx_buffer_size = std::min(4, topk);
+  // insertion sort the topk elements in each thread, stored in local buffer
   auto pair_type = GetArgIdxType(A->type());
 
   insert_sort_func = insert_sort_func + pe::Type2StrForArgReduce(A->type());
@@ -203,7 +220,6 @@ ir::Tensor TopK(const ir::Tensor &A,
   // stored on GPU thread local memory, the returned local array has only
   // `argidx_buffer_size` elements
 
-  // TODO(heqianyue): change to local buffer
   ir::Tensor local_sorted = ComputeWithLocalBuffer(A,
                                                    pair_type,
                                                    insert_sort_func,
@@ -212,55 +228,84 @@ ir::Tensor TopK(const ir::Tensor &A,
                                                    Expr(argidx_buffer_size));
 
   std::vector<Expr> output_shape(A->shape.begin(), A->shape.end());
-  output_shape[topk_axis] = topk;
+  std::vector<Expr> shape_wo_topk_axis(A->shape.begin(), A->shape.end());
+  output_shape[topk_axis] = Expr(topk);
+  shape_wo_topk_axis[topk_axis] = Expr(1);
   // here we should have shared memory buffers for array merging
 
   // phase 2 reduce merge: write to output buffer, but we need a global memory
   // ptr we also need a shared memory buffer for reduction we also need a grid
   // merge sort reduction
 
-  auto merge_buffer = ir::_Buffer_::Make(
-      "shm_" + pair_type.to_string() + "_merge", {ir::Expr(256)});
-  merge_buffer->dtype = pair_type;
-  merge_buffer->memory_type = ir::MemoryType::GPUShared;
-
-  // TODO(heqianyue): take a look at the grid_reduce - how does it allocate
-  // global semaphore?
-  auto merge_ptr = ir::_Buffer_::Make("gmem_merge_ptr_" + pair_type.to_string(),
-                                      {ir::Expr(1)});
-  merge_ptr->dtype = pair_type;
-  merge_ptr->memory_type = ir::MemoryType::Heap;
-
   auto res_idx = Compute(
       output_shape,
       [=](const std::vector<Expr> &indices) {
         // TODO(heqianyue): it is well possible that int should be replaced by
         // int64_t, including cuda template, registry, etc.
-        Expr offset(0);
+        Expr offset(0), ptr_offset(0);
         Expr stride(1);
         for (int i = 0; i < indices.size(); i++) {
-          offset = offset * output_shape + indices[i];
+          offset = offset * output_shape[i] + indices[i];
+          ptr_offset = ptr_offset * shape_wo_topk_axis[i] + indices[i];
           if (i > topk_axis) {
-            stride = stride * output_shape;
+            stride = stride * output_shape[i];
           }
         }
         offset = optim::ArithSimplify(offset);
+        ptr_offset = optim::ArithSimplify(ptr_offset);
         stride = optim::ArithSimplify(stride);
         // Allocate shared memory buffer for reduction
 
-        auto idx = lang::CallExtern(block_reduce_func,
-                                    {local_sorted,
-                                     merge_buffer,
-                                     merge_ptr,
-                                     Expr(argidx_buffer_size),
-                                     Expr(topk),
-                                     offset,
-                                     stride});
+        // TODO(heqianyue): currently I don't want to deal with the performance
+        // issue. A fixed 32 * 4 * 16B size of shared buffer is used, which will
+        // definitely introduce bank conflict and the wasting of shared memory
+        // if k is small.
+        auto merge_sort_buffer_name = cinn::UniqName("shm_merge_sort");
+        auto merge_buffer_ts = ir::Tensor(merge_sort_buffer_name,
+                                          pair_type,
+                                          {ir::Expr(128)},
+                                          {ir::Expr(128)},
+                                          ir::FunctionRef());
+        merge_buffer_ts->WithBuffer("shared",
+                                    merge_sort_buffer_name + "_buffer");
+
+        auto merge_ptr_buffer_name = cinn::UniqName("merge_ptr");
+        auto merge_ptr_ts = ir::Tensor(merge_ptr_buffer_name,
+                                       common::Int(32),
+                                       shape_wo_topk_axis,
+                                       std::move(shape_wo_topk_axis),
+                                       ir::FunctionRef());
+        merge_ptr_ts->WithBuffer("global", merge_ptr_buffer_name + "_buffer");
+        // TODO(heqianyue): check, merge_ptr_ts is not initialized to 0
+
+        // We call the grid reduce version by default, and in the optim pass, we
+        // will decide which function to call, depending on the relative size of
+        // grid/block and tensor shape. If we do not need grid reduce, merge_ptr
+        // will be replaced by a shared memory ptr
+        auto idx = CallExternWithWriteArgs(block_reduce_func,
+                                           {local_sorted,
+                                            Expr(argidx_buffer_size),
+                                            Expr(topk),
+                                            offset,
+                                            ptr_offset,
+                                            stride},
+                                           {merge_buffer_ts, merge_ptr_ts});
         return idx;
       },
-      "topk_sorted_ret");
+      "topk_index_ret");
 
-  return res_idx;
+  auto res_val = Compute(
+      output_shape,
+      [=](const std::vector<Expr> &indices) {
+        auto topk_axis_indices = ir::Load::Make(A, res_idx);
+        std::vector<Expr> tensor_idx(indices.begin(), indices.end());
+        tensor_idx[axis] = topk_axis_indices;
+
+        return ir::Load::Make(A, topk_axis_indices);
+      },
+      "topk_value_ret");
+
+  return {res_val, res_idx};
 }
 
 std::shared_ptr<framework::OpStrategy> StrategyForTopKSymbolic(
@@ -308,11 +353,16 @@ std::shared_ptr<framework::OpStrategy> StrategyForTopKSymbolic(
     std::string tensor_name = pack_args[0].operator std::string();
     auto out = TopK(tensor_A, target, axis, topk, largest, tensor_name);
     std::vector<CINNValue> res;
+    PADDLE_ENFORCE_EQ(
+        res.size(),
+        2,
+        ::common::errors::InvalidArgument(
+            "The output size of TopK is unexpected (expect: %d, actual: %lu).",
+            2,
+            res.size()));
+
     res.push_back(CINNValue(out.at(0)));
-    PADDLE_ENFORCE_NE(out_type.empty(),
-                      true,
-                      ::common::errors::InvalidArgument(
-                          "The output type of TopK is empty! Please check."));
+    res.push_back(CINNValue(out.at(1)));
     *ret = CINNValuePack{res};
   });
 
@@ -328,8 +378,8 @@ std::shared_ptr<framework::OpStrategy> StrategyForTopKSymbolic(
 CINN_REGISTER_HELPER(top_ops) {
   CINN_REGISTER_OP(topk)
       .describe("TopK.")
-      .set_num_inputs(2)
-      .set_num_outputs(1)
+      .set_num_inputs(1)
+      .set_num_outputs(2)
       .set_attr<cinn::hlir::framework::StrategyFunctionSymbolic>(
           "CINNStrategySymbolic", cinn::hlir::op::StrategyForTopKSymbolic)
       .set_attr<cinn::hlir::framework::OpPatternKind>(
