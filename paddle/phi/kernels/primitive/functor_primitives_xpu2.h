@@ -211,5 +211,21 @@ struct FloorDivFunctor {
   }
 };
 
+/**
+ * @brief Unary functor that replaces NaN with zero for nansum reduce
+ */
+template <typename Tx, typename Ty = Tx>
+struct NanToZeroFunctor {
+  HOSTDEVICE inline NanToZeroFunctor() {}
+  HOSTDEVICE explicit inline NanToZeroFunctor(int n) {}
+
+  HOSTDEVICE inline Ty operator()(const Tx& x) const {
+    Ty val = static_cast<Ty>(x);
+    return (val != val) ? static_cast<Ty>(0) : val;
+  }
+
+  HOSTDEVICE inline void SetDiv(int n) {}
+};
+
 }  // namespace kps
 }  // namespace phi

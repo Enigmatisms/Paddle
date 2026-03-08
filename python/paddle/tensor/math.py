@@ -1741,9 +1741,7 @@ def nansum(
     )
     check_type(axis, 'axis', (int, list, tuple, type(None)), 'nansum')
 
-    zero_tensor = paddle.zeros_like(x)
-    tmp_tensor = paddle.where(isnan(x), zero_tensor, x)
-    return sum(tmp_tensor, axis, dtype, keepdim, name)
+    return _C_ops.nansum(x, axis, dtype, keepdim)
 
 
 def nanmean(

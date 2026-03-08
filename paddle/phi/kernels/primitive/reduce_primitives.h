@@ -46,6 +46,30 @@ struct SumOps {
 
   SumOps() {}
 };
+template <typename InT, typename MPType = InT, typename OutT = MPType>
+struct NanSumOps {
+  inline DEVICE MPType compute(MPType a, InT b) const {
+    return reduce(a, static_cast<MPType>(b));
+  }
+
+  inline DEVICE MPType reduce(MPType a, MPType b) const {
+    if constexpr (std::is_floating_point<MPType>::value) {
+      return a + (isnan(b) ? MPType{0.} : b);
+    } else {
+      return a + b;
+    }
+  }
+
+  inline DEVICE OutT post_process(MPType a) const {
+    return static_cast<OutT>(a);
+  }
+
+  inline DEVICE MPType shfl_sync(unsigned mask, MPType data, int offset) const {
+    return phi::backends::gpu::CudaShuffleDownSync(mask, data, offset);
+  }
+
+  NanSumOps() {}
+};
 
 template <typename InT, typename MPType = InT, typename OutT = MPType>
 struct ProdOps {
