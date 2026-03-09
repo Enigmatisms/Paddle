@@ -46,6 +46,29 @@ struct SumOps {
 
   SumOps() {}
 };
+template <typename InT, typename MPType = InT, typename OutT = MPType>
+struct NanSumOps {
+  inline DEVICE MPType compute(MPType a, InT b) const {
+    return reduce(a, static_cast<MPType>(b));
+  }
+
+  inline DEVICE MPType reduce(MPType a, MPType b) const {
+    // Use b != b instead of isnan(b) for portability across
+    // Linux/Windows CUDA device code (IEEE 754: NaN != NaN).
+    // For non-floating-point types, b != b is always false.
+    return a + ((b != b) ? MPType{0} : b);
+  }
+
+  inline DEVICE OutT post_process(MPType a) const {
+    return static_cast<OutT>(a);
+  }
+
+  inline DEVICE MPType shfl_sync(unsigned mask, MPType data, int offset) const {
+    return phi::backends::gpu::CudaShuffleDownSync(mask, data, offset);
+  }
+
+  NanSumOps() {}
+};
 
 template <typename InT, typename MPType = InT, typename OutT = MPType>
 struct ProdOps {
